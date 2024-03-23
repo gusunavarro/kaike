@@ -1,51 +1,75 @@
 import streamlit as st
-from summarizer import summarize
-
-col1, col2 = st.columns([2,1])
-datos = col2.file_uploader(" Carga aquí tu archivo de datos.csv ")
-
-
-#Headings for Web Application
-st.title("procesamiento del lenguaje natural")
-st.subheader("Que servicio del lenguaje natural desea utilizar?")
-#Picking what NLP task you want to do
-option = st.selectbox('NLP Servicio',('Análisis de Sentimiento', 'Extracción de entidad', 'Resumen texto')) #option is stored in this variable
-#Textbox for text user is entering
-st.subheader("Entre el texto que le gustaría analizar")
-text = st.text_input('Entrar texto') #text is stored in this variable
-#Display results of the NLP task
-st.header("Resultado")
-
-import nltk
-
-from nltk.tokenize import word_tokenize, sent_tokenize
-
-
 from textblob import TextBlob
-import nltk
+import matplotlib.pyplot as plt
+import pandas as pd
+import textract
 
-if option != 'Análisis de Sentimiento':
 
-    summWords = summarize(text)
-    st.subheader("Summary")
-    st.write(summWords)
-#Sentiment Analysis
-else:
-    #Creating graph for sentiment across each sentence in the text inputted
-    sents = sent_tokenize(text) #tokenizing the text data into a list of sentences
-    entireText = TextBlob(text) #storing the entire text in one string
-    sentScores = [] #storing sentences in a list to plot
-    for sent in sents:
-        text = TextBlob(sent) #sentiment for each sentence
-        score = text.sentiment[0] #extracting polarity of each sentence
-        sentScores.append(score)
+# Función para analizar sentimientos
+def analyze_sentiment(text):
+    blob = TextBlob(text)
+    polarity = blob.sentiment.polarity
+    subjectivity = blob.sentiment.subjectivity
+    # Calculamos la objetividad como complemento de la subjetividad
+    objectivity = 1 - subjectivity
+    return polarity, subjectivity, objectivity
 
-    #Plotting sentiment scores per sentencein line graph
-    st.line_chart(sentScores) #using line_chart st call to plot polarity for each sentence
 
-    # Polarity and Subjectivity of the entire text inputted
-    sentimentTotal = entireText.sentiment
-    st.write("El sentimiento del texto general a continuación.")
-    st.write(sentimentTotal)
+# Interfaz de usuario con Streamlit
+st.title(" Koluel. Memorias de la Patagonia Austral. Análisis de Sentimientos.Por Gustavo Navarro  ")
 
- 
+
+# Caja de texto para ingresar texto
+texto_input = st.text_area("Ingrese o pegue el texto que desea analizar:", height=200)
+
+# Opción para subir múltiples archivos
+archivos = st.file_uploader("O cargar archivos (.txt, .doc, .pdf, .csv)", type=["txt", "doc", "docx", "pdf", "csv"],
+                            accept_multiple_files=True)
+
+if texto_input:
+    resultados_texto = []
+    polarity, subjectivity, objectivity = analyze_sentiment(texto_input)
+    resultados_texto.append(("Texto Ingresado", polarity, subjectivity, objectivity))
+
+    # Visualización de resultados del texto ingresado en formato de tabla
+    df_resultados_texto = pd.DataFrame(resultados_texto,
+                                       columns=["Archivo", "Polaridad", "Subjetividad", "Objetividad"])
+    st.write(df_resultados_texto)
+
+    # Gráfico de barras para comparar los resultados
+    fig, ax = plt.subplots(figsize=(10, 6))
+    df_resultados_texto.plot(kind='bar', x='Archivo', ax=ax)
+    ax.set_ylabel("Valor")
+    ax.set_title("Análisis de Sentimientos del Texto Ingresado")
+    st.pyplot(fig)
+
+if archivos:
+    resultados_archivos = []
+    for archivo in archivos:
+        contenido = ""
+        if archivo.type == "text/plain":
+            contenido = archivo.read().decode("utf-8")
+        elif archivo.type == "application/pdf":
+            contenido = textract.process(archivo)
+            contenido = contenido.decode("utf-8")
+        elif archivo.type == "text/csv":
+            contenido = pd.read_csv(archivo)
+            contenido = contenido.to_string()
+        else:
+            contenido = textract.process(archivo)
+            contenido = contenido.decode("utf-8")
+
+        polarity, subjectivity, objectivity = analyze_sentiment(contenido)
+        resultados_archivos.append((archivo.name, polarity, subjectivity, objectivity))
+
+    # Visualización de resultados de los archivos en formato de tabla
+    df_resultados_archivos = pd.DataFrame(resultados_archivos,
+                                          columns=["Archivo", "Polaridad", "Subjetividad", "Objetividad"])
+    st.write(df_resultados_archivos)
+
+    # Gráfico de barras para comparar los resultados
+    fig, ax = plt.subplots(figsize=(10, 6))
+    df_resultados_archivos.plot(kind='bar', x='Archivo', ax=ax)
+    ax.set_ylabel("Valor")
+    ax.set_title("Análisis de Sentimientos de los Archivos")
+    st.pyplot(fig)
